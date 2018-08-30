@@ -222,13 +222,14 @@ public class TextIOReadTest {
   }
 
   private static TextSource prepareSource(
-      TemporaryFolder temporaryFolder, byte[] data, byte[] delimiter) throws IOException {
+      TemporaryFolder temporaryFolder, byte[] data, byte[] delimiter, String encoding) throws IOException {
     Path path = temporaryFolder.newFile().toPath();
     Files.write(path, data);
     return new TextSource(
         ValueProvider.StaticValueProvider.of(path.toString()),
         EmptyMatchTreatment.DISALLOW,
-        delimiter);
+        delimiter,
+        encoding);
   }
 
   private static String getFileSuffix(Compression compression) {
@@ -349,21 +350,21 @@ public class TextIOReadTest {
 
     @Test
     public void testReadLinesWithDelimiter() throws Exception {
-      runTestReadWithData(line.getBytes(UTF_8), expected);
+      runTestReadWithData(line.getBytes(UTF_8), UTF_8.name(), expected);
     }
 
     @Test
     public void testSplittingSource() throws Exception {
-      TextSource source = prepareSource(line.getBytes(UTF_8));
+      TextSource source = prepareSource(line.getBytes(UTF_8), UTF_8.name());
       SourceTestUtils.assertSplitAtFractionExhaustive(source, PipelineOptionsFactory.create());
     }
 
-    private TextSource prepareSource(byte[] data) throws IOException {
-      return TextIOReadTest.prepareSource(tempFolder, data, null);
+    private TextSource prepareSource(byte[] data, String encoding) throws IOException {
+      return TextIOReadTest.prepareSource(tempFolder, data, null, encoding);
     }
 
-    private void runTestReadWithData(byte[] data, List<String> expectedResults) throws Exception {
-      TextSource source = prepareSource(data);
+    private void runTestReadWithData(byte[] data, String encoding, List<String> expectedResults) throws Exception {
+      TextSource source = prepareSource(data, encoding);
       List<String> actual = SourceTestUtils.readFromSource(source, PipelineOptionsFactory.create());
       assertThat(
           actual, containsInAnyOrder(new ArrayList<>(expectedResults).toArray(new String[0])));
@@ -447,7 +448,7 @@ public class TextIOReadTest {
       for (String testCase : testCases) {
         SourceTestUtils.assertSplitAtFractionExhaustive(
             TextIOReadTest.prepareSource(
-                tempFolder, testCase.getBytes(UTF_8), new byte[] {'|', '*'}),
+                tempFolder, testCase.getBytes(UTF_8), new byte[] {'|', '*'}, UTF_8.name()),
             PipelineOptionsFactory.create());
       }
     }
@@ -609,14 +610,14 @@ public class TextIOReadTest {
       assertEquals("TextIO.Read", TextIO.read().from("somefile").toString());
     }
 
-    private TextSource prepareSource(byte[] data) throws IOException {
-      return TextIOReadTest.prepareSource(tempFolder, data, null);
+    private TextSource prepareSource(byte[] data, String encoding) throws IOException {
+      return TextIOReadTest.prepareSource(tempFolder, data, null, encoding);
     }
 
     @Test
     public void testProgressEmptyFile() throws IOException {
       try (BoundedSource.BoundedReader<String> reader =
-          prepareSource(new byte[0]).createReader(PipelineOptionsFactory.create())) {
+          prepareSource(new byte[0], UTF_8.name()).createReader(PipelineOptionsFactory.create())) {
         // Check preconditions before starting.
         assertEquals(0.0, reader.getFractionConsumed(), 1e-6);
         assertEquals(0, reader.getSplitPointsConsumed());
@@ -637,7 +638,7 @@ public class TextIOReadTest {
     public void testProgressTextFile() throws IOException {
       String file = "line1\nline2\nline3";
       try (BoundedSource.BoundedReader<String> reader =
-          prepareSource(file.getBytes(Charsets.UTF_8))
+          prepareSource(file.getBytes(Charsets.UTF_8), UTF_8.name())
               .createReader(PipelineOptionsFactory.create())) {
         // Check preconditions before starting
         assertEquals(0.0, reader.getFractionConsumed(), 1e-6);
@@ -673,7 +674,7 @@ public class TextIOReadTest {
     @Test
     public void testProgressAfterSplitting() throws IOException {
       String file = "line1\nline2\nline3";
-      BoundedSource<String> source = prepareSource(file.getBytes(Charsets.UTF_8));
+      BoundedSource<String> source = prepareSource(file.getBytes(Charsets.UTF_8), UTF_8.name());
       BoundedSource<String> remainder;
 
       // Create the remainder, verifying properties pre- and post-splitting.

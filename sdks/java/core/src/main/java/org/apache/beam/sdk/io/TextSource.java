@@ -50,27 +50,30 @@ import org.apache.beam.sdk.options.ValueProvider;
 @VisibleForTesting
 class TextSource extends FileBasedSource<String> {
   byte[] delimiter;
+  String encoding;
 
   TextSource(
-      ValueProvider<String> fileSpec, EmptyMatchTreatment emptyMatchTreatment, byte[] delimiter) {
+    ValueProvider<String> fileSpec, EmptyMatchTreatment emptyMatchTreatment, byte[] delimiter, String encoding) {
     super(fileSpec, emptyMatchTreatment, 1L);
     this.delimiter = delimiter;
+    this.encoding = encoding;
   }
 
-  private TextSource(MatchResult.Metadata metadata, long start, long end, byte[] delimiter) {
+  private TextSource(MatchResult.Metadata metadata, long start, long end, byte[] delimiter, String encoding) {
     super(metadata, 1L, start, end);
     this.delimiter = delimiter;
+    this.encoding = encoding;
   }
 
   @Override
   protected FileBasedSource<String> createForSubrangeOfFile(
       MatchResult.Metadata metadata, long start, long end) {
-    return new TextSource(metadata, start, end, delimiter);
+    return new TextSource(metadata, start, end, delimiter, encoding);
   }
 
   @Override
   protected FileBasedReader<String> createSingleFileReader(PipelineOptions options) {
-    return new TextBasedReader(this, delimiter);
+    return new TextBasedReader(this, delimiter, encoding);
   }
 
   @Override
@@ -98,11 +101,13 @@ class TextSource extends FileBasedSource<String> {
     private @Nullable String currentValue;
     private @Nullable ReadableByteChannel inChannel;
     private @Nullable byte[] delimiter;
+    private String encoding;
 
-    private TextBasedReader(TextSource source, byte[] delimiter) {
+    private TextBasedReader(TextSource source, byte[] delimiter, String encoding) {
       super(source);
       buffer = ByteString.EMPTY;
       this.delimiter = delimiter;
+      this.encoding = encoding;
     }
 
     @Override
@@ -251,7 +256,7 @@ class TextSource extends FileBasedSource<String> {
      */
     private void decodeCurrentElement() throws IOException {
       ByteString dataToDecode = buffer.substring(0, startOfDelimiterInBuffer);
-      currentValue = dataToDecode.toStringUtf8();
+      currentValue = dataToDecode.toString(encoding);
       elementIsPresent = true;
       buffer = buffer.substring(endOfDelimiterInBuffer);
     }

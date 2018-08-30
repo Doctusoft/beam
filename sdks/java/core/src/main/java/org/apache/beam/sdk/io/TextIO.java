@@ -35,6 +35,7 @@ import java.io.PrintWriter;
 import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.WritableByteChannel;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -183,6 +184,7 @@ public class TextIO {
         .setCompression(Compression.AUTO)
         .setHintMatchesManyFiles(false)
         .setMatchConfiguration(MatchConfiguration.create(EmptyMatchTreatment.DISALLOW))
+        .setEncoding(StandardCharsets.UTF_8.name())
         .build();
   }
 
@@ -200,6 +202,7 @@ public class TextIO {
     return new AutoValue_TextIO_ReadAll.Builder()
         .setCompression(Compression.AUTO)
         .setMatchConfiguration(MatchConfiguration.create(EmptyMatchTreatment.ALLOW_IF_WILDCARD))
+        .setEncoding(StandardCharsets.UTF_8.name())
         .build();
   }
 
@@ -271,6 +274,8 @@ public class TextIO {
     @Nullable
     abstract byte[] getDelimiter();
 
+    abstract String getEncoding();
+
     abstract Builder toBuilder();
 
     @AutoValue.Builder
@@ -284,6 +289,8 @@ public class TextIO {
       abstract Builder setCompression(Compression compression);
 
       abstract Builder setDelimiter(byte[] delimiter);
+
+      abstract Builder setEncoding(String encoding);
 
       abstract Read build();
     }
@@ -330,6 +337,15 @@ public class TextIO {
      */
     public Read withCompression(Compression compression) {
       return toBuilder().setCompression(compression).build();
+    }
+
+    /**
+     * Reads from input sources using the specified encoding.
+     *
+     * <p>If no encoding is specified, the default is {@link java.nio.charset.StandardCharsets#UTF_8}.
+     */
+    public Read withEncoding(String encoding) {
+      return toBuilder().setEncoding(encoding).build();
     }
 
     /**
@@ -393,7 +409,8 @@ public class TextIO {
               readAll()
                   .withCompression(getCompression())
                   .withMatchConfiguration(getMatchConfiguration())
-                  .withDelimiter(getDelimiter()));
+                  .withDelimiter(getDelimiter())
+                  .withEncoding(getEncoding()));
     }
 
     // Helper to create a source specific to the requested compression type.
@@ -402,7 +419,8 @@ public class TextIO {
               new TextSource(
                   getFilepattern(),
                   getMatchConfiguration().getEmptyMatchTreatment(),
-                  getDelimiter()))
+                  getDelimiter(),
+                  getEncoding()))
           .withCompression(getCompression());
     }
 
@@ -435,6 +453,8 @@ public class TextIO {
     @Nullable
     abstract byte[] getDelimiter();
 
+    abstract String getEncoding();
+
     abstract Builder toBuilder();
 
     @AutoValue.Builder
@@ -444,6 +464,8 @@ public class TextIO {
       abstract Builder setCompression(Compression compression);
 
       abstract Builder setDelimiter(byte[] delimiter);
+
+      abstract Builder setEncoding(String encoding);
 
       abstract ReadAll build();
     }
@@ -466,6 +488,10 @@ public class TextIO {
      */
     public ReadAll withCompression(Compression compression) {
       return toBuilder().setCompression(compression).build();
+    }
+
+    public ReadAll withEncoding(String encoding) {
+      return toBuilder().setEncoding(encoding).build();
     }
 
     /** Same as {@link Read#withEmptyMatchTreatment}. */
@@ -493,7 +519,7 @@ public class TextIO {
               FileIO.readMatches()
                   .withCompression(getCompression())
                   .withDirectoryTreatment(DirectoryTreatment.PROHIBIT))
-          .apply(readFiles().withDelimiter(getDelimiter()));
+          .apply(readFiles().withDelimiter(getDelimiter()).withEncoding(getEncoding()));
     }
 
     @Override
@@ -521,6 +547,8 @@ public class TextIO {
     @Nullable
     abstract byte[] getDelimiter();
 
+    abstract String getEncoding();
+
     abstract Builder toBuilder();
 
     @AutoValue.Builder
@@ -528,6 +556,8 @@ public class TextIO {
       abstract Builder setDesiredBundleSizeBytes(long desiredBundleSizeBytes);
 
       abstract Builder setDelimiter(byte[] delimiter);
+
+      abstract Builder setEncoding(String encoding);
 
       abstract ReadFiles build();
     }
@@ -542,28 +572,34 @@ public class TextIO {
       return toBuilder().setDelimiter(delimiter).build();
     }
 
+    public ReadFiles withEncoding(String encoding) {
+      return toBuilder().setEncoding(encoding).build();
+    }
+
     @Override
     public PCollection<String> expand(PCollection<FileIO.ReadableFile> input) {
       return input.apply(
           "Read all via FileBasedSource",
           new ReadAllViaFileBasedSource<>(
               getDesiredBundleSizeBytes(),
-              new CreateTextSourceFn(getDelimiter()),
+              new CreateTextSourceFn(getDelimiter(), getEncoding()),
               StringUtf8Coder.of()));
     }
 
     private static class CreateTextSourceFn
         implements SerializableFunction<String, FileBasedSource<String>> {
       private byte[] delimiter;
+      private String encoding;
 
-      private CreateTextSourceFn(byte[] delimiter) {
+      private CreateTextSourceFn(byte[] delimiter, String encoding) {
         this.delimiter = delimiter;
+        this.encoding = encoding;
       }
 
       @Override
       public FileBasedSource<String> apply(String input) {
         return new TextSource(
-            StaticValueProvider.of(input), EmptyMatchTreatment.DISALLOW, delimiter);
+            StaticValueProvider.of(input), EmptyMatchTreatment.DISALLOW, delimiter, encoding);
       }
     }
   }
